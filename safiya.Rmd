@@ -1,0 +1,125 @@
+---
+title: "Project 3"
+author: "Safiya Sirota"
+date: "2023-04-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+```
+
+Load in data
+
+```{r data}
+data <- read_csv("covid_working_data.csv")
+```
+
+Find posterior distribution
+
+```{r}
+# Log-likelihood for Y given all parameters and data
+loglik <- function(Yij, nij, alpha, betas, gamma, delta, ui, eij,
+                     Xijs, Pij, Eij) {
+  sum((alpha + betas*Xijs + gamma*Pij + delta*Eij + ui + eij)*(Yij - nij))
+}
+
+# Log prior distribution for all parameters
+logprior <- function(alpha, betas, gamma, delta, ui, eij, sigu, sige) {
+  -sum(alpha^2/200, betas^2/200, gamma^2/200, ui^2/(2*sigu^2), eij^2/(2*sige^2),
+       sigu^2/200, sige^2/200)
+}
+
+# Posterior distribution of lambdas created by summing the two
+# Should make sure variances are positive
+logpost <- function(Yij, nij, Xijs, Pij, Eij, alpha, betas, gamma, delta, ui, eij, 
+                    sigu, sige) {
+  if(min(sigu, sige) <= 0) return(-Inf)
+  else {
+    loglik(Yij, nij, alpha, betas, gamma, delta, ui, eij, Xijs, Pij, Eij) +
+    logprior(alpha, betas, gamma, delta, ui, eij, sigu, sige)
+  }
+}
+```
+
+Now MCMC algorithm
+
+```{r}
+MHstep <- function(pars, avec, Yij, nij, Xijs, Pij, Eij) {
+  res <- pars
+  npars <- length(pars)
+  for (i in 1:npars) {
+    prop <- res
+    prop[i] <- res[i] + 2*avec[i]*(runif(1) - 0.5)
+    if (log(runif(1)) < 
+        logpost(Yij, nij, Xijs, Pij, Eij,
+                prop[1], prop[2:5], prop[6], prop[7], prop[8], prop[9], prop[10], 
+                prop[11]) -
+        logpost(Yij, nij, Xijs, Pij, Eij,
+                res[1], res[2:5], res[6], res[7], res[8], res[9], res[10], 
+                res[11])) {
+      res[i] <- prop[i]
+    }
+  }
+  return(res)
+}
+```
+
+Prepare data and inputs
+
+```{r}
+# Data preparation
+data2 <- na.omit(data)
+
+Yij <- data2$weekly_cases
+nij <- data2$pop2019
+Xijs <- cbind(data2$government_response_index, 
+              data2$retail_and_recreation_percent_change_from_baseline,
+              data2$parks_percent_change_from_baseline,
+              data2$transit_stations_percent_change_from_baseline)
+Pij <- data2$population_density
+Eij <- data2$Percentage_over_65
+
+# Set up number of repeats and chain matrix
+nrep <- 1000
+mchain <- matrix(NA, nrow = nrep, ncol = 12)
+
+# Parameter starting values
+mchain[1,] <- rep(1, 12)
+
+# Window values
+avec <- rep(0.5, 12)
+```
+
+Running it
+
+```{r}
+for (i in 2:nrep) {
+  mchain[i,] <- MHstep(mchain[i - 1,], avec, Yij, nij, Xijs, Pij, Eij)
+}
+```
+
+Plots for convergence
+
+```{r}
+chain_data <- as_tibble(mchain)
+
+chain_data <- chain_data %>% 
+  rename("alpha" = V1,
+        "beta_1" = V2, "beta_2" = V3, "beta_3" = V4, "beta_4" = V5,
+         "gamma" = V6,
+         "delta" = V7,
+         "u_i" = V8,
+         "e_ij" = V9,
+         "sig_u" = V10,
+         "sig_e" = V11)
+
+ggplot(chain_data, aes(x = 1:nrow(mchain), y = alpha)) +
+  geom_line() +
+  theme_bw()
+
+ggplot(chain_data, aes(x = alpha)) +
+  geom_histogram() +
+  theme_bw()
+```
+
