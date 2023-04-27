@@ -81,14 +81,14 @@ Pij <- data2$population_density
 Eij <- data2$Percentage_over_65
 
 # Set up number of repeats and chain matrix
-nrep <- 1000
-mchain <- matrix(NA, nrow = nrep, ncol = 12)
+nrep <- 15000
+mchain <- matrix(NA, nrow = nrep, ncol = 11)
 
 # Parameter starting values
-mchain[1,] <- rep(1, 12)
+mchain[1,] <- c(rep(0, 9), rep(25, 2))
 
 # Window values
-avec <- rep(0.5, 12)
+avec <- c(rep(0.01, 9), rep(20, 2))
 ```
 
 Running it
@@ -121,5 +121,25 @@ ggplot(chain_data, aes(x = 1:nrow(mchain), y = alpha)) +
 ggplot(chain_data, aes(x = alpha)) +
   geom_histogram() +
   theme_bw()
+
+ggplot(chain_data, aes(x = 1:nrow(mchain), y = sig_u)) +
+  geom_line() +
+  theme_bw()
+
+ggplot(chain_data, aes(x = sig_u)) +
+  geom_histogram() +
+  theme_bw()
 ```
+
+Diagnostic for window values
+
+```{r}
+numunique <- function(mat){
+  for (i in 1:ncol(mat))
+    cat(i, "\t", length(unique(mat[,i])), "\n")
+}
+
+numunique(mchain)
+```
+
 
