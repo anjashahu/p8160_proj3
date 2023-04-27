@@ -1,0 +1,190 @@
+---
+title: "Project 3"
+author: "Bin Yang"
+date: "2023-04-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+```
+
+Load in data
+
+```{r data}
+data <- read_csv("covid_working_data.csv")
+```
+
+Find posterior distribution
+
+```{r}
+# Log-likelihood for Y given all parameters and data
+loglik <- function(Yij, nij, alpha, betas, gamma, delta, ui, eij,
+                Xijs, Pij, Eij) {
+  lambda <- exp(alpha + betas*Xijs + gamma*Pij + delta*Eij + ui + eij)
+  lik_ij <- log((lambda*nij)^Yij*exp(-lambda*nij)/(factorial(Yij)))
+  lik_ij <- lik_ij[lik_ij != -Inf]
+  return(sum(lik_ij,na.rm = TRUE))
+}
+
+lik(Yij = Yij, nij = nij, alpha = 1, betas = rep(1,7), 1, 1,1 ,1,Xijs = Xijs, Pij=Pij, Eij = Eij)
+logpost(Yij = Yij, nij = nij,Xijs = Xijs, Pij=Pij, Eij = Eij, alpha = 1, betas = rep(1,7), 1, 1,1 ,1,1,1)
+logpost(Yij = Yij, nij = nij,Xijs = Xijs, Pij=Pij, Eij = Eij, alpha = 1, betas = rep(1,7), 1, 1,1 ,1,1,1)
+
+res <- rep(1,14)
+    prop <- res
+    
+    i = 1
+
+    prop[i] <- res[i] + 2*avec[i]*(runif(1) - 0.5)
+ logpost(Yij, nij, Xijs, Pij, Eij,
+                res[1], res[2:8], res[9], res[10], res[11], res[12], res[13], 
+                res[14])
+ 
+ logpost(Yij, nij, Xijs, Pij, Eij,
+                prop[1], prop[2:8], prop[9], prop[10], prop[11], prop[12], prop[13], 
+                prop[14]) -
+             logpost(Yij, nij, Xijs, Pij, Eij,
+                res[1], res[2:8], res[9], res[10], res[11], res[12], res[13], 
+                res[14])
+ 
+# Log prior distribution for all parameters
+logprior <- function(alpha, betas, gamma, delta, ui, eij, sigu, sige) {
+  -sum(alpha^2/200, betas^2/200, gamma^2/200, ui^2/(2*sigu^2), 
+       eij^2/(2*sige^2), sigu, sige,
+       sigu^2/200, sige^2/200)
+}
+
+# Posterior distribution of lambdas created by summing the two
+# Should make sure variances are positive
+logpost <- function(Yij, nij, Xijs, Pij, Eij, alpha, betas, gamma, delta, ui, eij, 
+                    sigu, sige) {
+  if(min(sigu, sige) <= 0) return(-Inf)
+  else {
+    loglik(Yij, nij, alpha, betas, gamma, delta, ui, eij, Xijs, Pij, Eij) +
+    logprior(alpha, betas, gamma, delta, ui, eij, sigu, sige)
+  }
+}
+```
+
+Now MCMC algorithm
+
+```{r}
+MHstep <- function(pars, avec, Yij, nij, Xijs, Pij, Eij) {
+  npars <- length(pars)
+  res <- pars
+  for (i in 1:npars) {
+    prop <- res
+    prop[i] <- res[i] + 2*avec[i]*(runif(1) - 0.5)
+    diff <-  logpost(Yij, nij, Xijs, Pij, Eij,
+                prop[1], prop[2:8], prop[9], prop[10], prop[11], prop[12], prop[13], 
+                prop[14]) -
+             logpost(Yij, nij, Xijs, Pij, Eij,
+                res[1], res[2:8], res[9], res[10], res[11], res[12], res[13], 
+                res[14])
+    if (log(runif(1)) < diff) {
+      res[i] <- prop[i]
+    }
+  }
+  return(res)
+}
+```
+
+Prepare data and inputs
+
+```{r}
+# Data preparation
+data2 <- na.omit(data) %>% select(-c(state,week_start)) %>% scale() %>% as.data.frame()
+
+Yij <- data2$weekly_cases
+nij <- data2$pop2019
+Xijs <- cbind(data2$government_response_index, 
+              data2$retail_and_recreation_percent_change_from_baseline,
+              data2$parks_percent_change_from_baseline,
+              data2$transit_stations_percent_change_from_baseline,
+              data2$economic_support_index,
+              data2$containment_index,
+              data2$stringency_index)
+Pij <- data2$population_density
+Eij <- data2$Percentage_over_65
+
+# Set up number of repeats and chain matrix
+nrep <- 10000
+mchain <- matrix(NA, nrow = nrep, ncol = 14)
+
+# Parameter starting values
+mchain[1,] <- rep(1,14)
+
+# Window values
+avec <- c(rep(0.1,12),rep(1,2))
+```
+
+Running it
+
+```{r}
+set.seed(123)
+for (i in 2:nrep) {
+  mchain[i,] <- MHstep(mchain[i - 1,], avec, Yij, nij, Xijs, Pij, Eij)
+}
+```
+
+Plots for convergence
+
+```{r}
+chain_data <- as.data.frame(mchain)
+
+colnames(chain_data) <- c("alpha", "beta1", "beta2", "beta3", "beta4", "beta5", "beta6", "beta7", 
+                      "gamma", "delta", "u", "e","sigma_u", "sigma_e")
+
+# save(chain_data, file = "chain_data.Rda")
+# load("chain_data.Rda")
+```
+
+Diagnostic for window values
+
+```{r}
+numunique <- function(mat){
+  for (i in 1:ncol(mat))
+    cat(i, "\t", length(unique(mat[,i])), "\n")
+}
+
+numunique(chain_data)
+```
+
+```{r}
+par(mfrow=c(2,4))
+for(i in 1:8){
+  plot(x = 1:nrow(chain_data), y =chain_data[,i], type = "l", lty = 1, main = names(chain_data)[i])
+  lines(x = 1:nrow(chain_data), y = chain_data[,i], type = "l", lty = 1)
+}
+```
+
+```{r}
+par(mfrow=c(2,3))
+for(i in 9:14){
+  plot(x = 1:nrow(chain_data), y =chain_data[,i], type = "l", lty = 1, main = names(chain_data)[i])
+  lines(x = 1:nrow(chain_data), y = chain_data[,i], type = "l", lty = 1)
+}
+
+```
+
+```{r}
+ggplot(chain_data, aes(x = 1:nrow(mchain), y = alpha)) +
+  geom_line() +
+  theme_bw()
+
+ggplot(chain_data, aes(x = alpha)) +
+  geom_histogram() +
+  theme_bw()
+
+ggplot(chain_data, aes(x = 1:nrow(mchain), y = sig_u)) +
+  geom_line() +
+  theme_bw()
+
+ggplot(chain_data, aes(x = sig_u)) +
+  geom_histogram() +
+  theme_bw()
+```
+
+
+
