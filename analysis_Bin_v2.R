@@ -51,7 +51,7 @@ logpost <- function(Yij, Xij, nij, Pij, Eij, ui, uij, eij, alpha, beta, gamma, d
 
 
 MH <- function(df, Yij, Xij, nij, Pij, Eij, pars, avec) {
-  res <- pars_start
+  res <- pars
   npars <- length(res)
   res_ui <- res[1:50] 
   res_uij <- df %>%
