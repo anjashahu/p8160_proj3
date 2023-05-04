@@ -2,7 +2,9 @@
 title: "Bayesian Hierarchical Modeling of COVID-19 Cases and Government Response in the United States"
 author: "Lincole Jiang, Safiya Sirota, Anja Shahu, Bin Yang, Ting-Hsuan Chang"
 date: "`r Sys.Date()`"
-output: pdf_document
+output: 
+  pdf_document:
+    extra_dependencies: ["flafter"]
 header-includes:
     - \usepackage{amsmath}
 bibliography: citations.bib
@@ -69,6 +71,27 @@ To allow the results to converge more quickly and save computation time, we choo
 $$\begin{aligned} log(\lambda_{ij}) = \alpha + \boldsymbol{\beta} \boldsymbol{x}^T_{ij} + \gamma P_{ij} + \delta E_{ij} + u_i + e_{ij} \end{aligned}$$
 where $\alpha$ is the fixed intercept, $\boldsymbol{\beta}$ is the vector of fixed-effect coefficients associated with the vector of covariates $\boldsymbol{x}^T_{ij}$, $\gamma$ is the fixed-effect coefficient associated with population density $P_{ij}$, $\delta$ is the fixed-effect coefficient associated with the perentage of elderly population $E_{ij}$, $u_i \sim N(0, \sigma_u^2)$ is the state-specific random intercept, and $e_{ij} \sim N(0, \sigma_e^2)$ is the residual error term.
 
+
+# Results
+
+## Convergence
+
+## Posterior Summaries
+
+Table 2 shows the posterior means and 95% credible intervals of the parameters for mobility changes, government response, population density, and percentage of elderly population. The posterior mean is calculated by taking the mean of the MCMC chain after burn-in (i.e., last 50,000 states of the chain), and the 95% credible interval is the 2.5% and 97.5% percentiles of the chain after burn-in. Because the Government Response Index measures the overall government response to the pandemic -- including containment measures, economic support, and stringency of public health measures -- we only present the posterior results of the parameter for Government Response Index ($\beta_4$) here. Based on the posterior summeries, changes in mobility trends (compared to baseline) for retail and recreation were associated with a slight decrease in the expected log infection rate, whereas changes in mobility trends for parks and transit stations were associated with an increase in the expected log infection rate. A 1-unit increase in the weekly average Government Response Index was associated with a 4.95 unit decrease in the expected log infection rate, adjusting for the other covariates. A 1% increase in percentage of elderly population was associated with a 12.74 unit decrease in the expected log infection rate, adjusting for the other covariates. The credible interval with respect to population density suggests that population density had no significant impact on the infection rate.
+
+# Conclusion
+
+Our posterior results suggest that the overall government response to the pandemic may be crucial for slowing down the spread of COVID-19. Larger mobility changes in retail and recreation may also slow down the spread of COVID-19. However, the temporal order of changes in mobility trends and infection rate is unclear given the available data. A next step for future studies is thus to evaluate the lagged relationship between mobility trends and infection rate. In terms of demographics, higher percentage of elderly population appeared to be associated with lower infection rate, which may be due to other factors (e.g., less interactions among older adults). We therefore suggest further investigation on the causal mechanisms underlying the spread of COVID-19 among the younger population. Finally, population density did not appear to have a significant impact on the infection rate. There have been mixed findings in the literature regarding the importance of population density on the spread of COVID-19. Although a higher population density indicates a higher chance of being in contact with a positive case, larger cities also tend to have more resources to combat the pandemic than rural areas. More in-depth research on these relationships is thus needed to determine the important predictors for the spread of COVID-19.
+
+\clearpage
+
+# References
+
+<div id="refs"></div>
+
+# Tables and Figures
+
 ```{r, warning = FALSE, message = FALSE}
 # read in data
 data <- read_csv("covid_working_data.csv")
@@ -120,34 +143,30 @@ tab_lmer %>%
   )
 ```
 
+```{r, warning = FALSE, message = FALSE}
+load("mchain.Rda")
+mchain_last <- mchain[50001:nrow(mchain),]
 
+t_post_summaries <- mchain_last %>%
+  select(beta1, beta2, beta3, beta4, gamma, delta) %>%
+  pivot_longer(cols = beta1:delta, names_to = "Parameter", values_to = "s") %>%
+  group_by(Parameter) %>%
+  summarise(`Posterior Mean` = mean(s),
+            lwr = quantile(s, 0.025),
+            upr = quantile(s, 0.975)) %>%
+  mutate(`Posterior Mean` = case_when(Parameter == "gamma" ~ as.character(round(`Posterior Mean`, 5)),
+                                      Parameter %in% c("beta1", "beta2", "beta3", "beta4", "delta") ~ as.character(round(`Posterior Mean`, 3))),
+         lwr = case_when(Parameter == "gamma" ~ round(lwr, 5),
+                         Parameter %in% c("beta1", "beta2", "beta3", "beta4", "delta") ~ round(lwr, 3)),
+         upr = case_when(Parameter == "gamma" ~ round(upr, 5),
+                         Parameter %in% c("beta1", "beta2", "beta3", "beta4", "delta") ~ round(upr, 3))) %>%
+  mutate(`95% Credible Interval` = paste0("(", lwr, " ", upr, ")")) %>%
+  select(-c(lwr, upr)) %>%
+  kbl(booktabs = TRUE, linesep = "", caption = "Posterior summaries of the parameters") %>%
+  kableExtra::footnote(general = c("beta1: mobility changes for retail and recreation", "beta2: mobility changes for parks", "beta3: mobility changes for transit stations", "beta4: government response index", "delta: percentage of elderly population", "gamma: population density"), general_title = "") 
 
-        
-
-
-
-
-
-
-# Results
-
-## Convergence
-
-## Posterior Summaries
-
-# Conclusion
-
-
-
-\clearpage
-
-# References
-
-<div id="refs"></div>
-
-
-
-
+t_post_summaries
+```
 
 
 
