@@ -1,0 +1,154 @@
+---
+title: "Bayesian Hierarchical Modeling of COVID-19 Cases and Government Response in the United States"
+author: "Lincole Jiang, Safiya Sirota, Anja Shahu, Bin Yang, Ting-Hsuan Chang"
+date: "`r Sys.Date()`"
+output: pdf_document
+header-includes:
+    - \usepackage{amsmath}
+bibliography: citations.bib
+csl: jama.csl
+---
+\newcommand\numberthis{\addtocounter{equation}{1}\tag{\theequation}}
+
+```{r setup, include = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse)
+library(lme4)
+library(knitr)
+library(kableExtra)
+```
+
+
+# Introduction
+
+# Methods
+
+## Model
+
+## Algorithm
+
+We use a component-wise Metropolis Hastings (MH) algorithm that updates the $p$ parameters at the $k$th iteration one at a time. In contrast to the Gibbs sampler, the MH algorithm uses the full joint distribution to generate potential values, allowing us to avoid computing the full conditional posteriors for each of the parameters.
+
+For our algorithm, we first define some notation: 
+
+* $N_{iter}$ is the number of iterations that the algorithm was run for.
+
+* $\theta_i^{(k)}$ and $\theta_i^{(k+1)}$ are the current and updated values, respectively, for the $i$th parameter at the $k$th iteration.
+
+* $\boldsymbol{\theta}^{(k)} = (\theta_1^{(k)}, \theta_2^{(k)}, \ldots, \theta_p^{(k)})$ is the vector of parameters $\boldsymbol{\theta}$ at the start of the $k$th iteration.
+
+* $\boldsymbol{\theta}_{-i}^{(k)} = (\theta_1^{(k+1)}, \theta_2^{(k+1)}, \ldots, \theta_{i-1}^{(k+1)}, \theta_{i+1}^{(k)}, \ldots \theta_p^{(k)})$ is the current vector of parameters $\boldsymbol{\theta}$ at the $k$th iteration, excluding the $i$th parameter.
+
+* $\theta_i^*$ is the proposal value for the $i$th parameter.
+
+* $Q_i(\theta^*|\theta_i^{(k)})$ is the proposal distribution for the $i$th parameter. More generally, the proposal distribution can also depend on $\boldsymbol{\theta}_{-i}^{(k)}$, but for our algorithm, our choice of proposal distribution depends only on $\theta_i^{(k)}$.
+
+The algorithm is given as follows:
+
+1. Choose starting values $\boldsymbol{\theta}^{(0)}$.
+
+2. For the $k$th iteration where $k = 1, \ldots, N_{iter}$:
+
+    1. For the $i$th parameter where $i = 1, \ldots, p$:
+    
+        1. Generate $\theta_i^*$ from $Q_i(\theta^*|\theta_i^{(k)})$.
+        
+        2. Calculate the MH ratio given by: 
+        \begin{align*} r_i^{(k)} &= \frac{\pi(\theta_i^*, \boldsymbol{\theta}_{-i}^{(k)} | \boldsymbol{X})}{\pi(\theta_i^{(k)}, \boldsymbol{\theta}_{-i}^{(k)} | \boldsymbol{X})} \frac{Q_i(\theta_i^{(k)} | \theta_i^*)}{Q_i(\theta_i^*|\theta_i^{(k)})} \\ &= \frac{f(\theta_i^*, \boldsymbol{\theta}_{-i}^{(k)}, \boldsymbol{X})}{f(\theta_i^{(k)}, \boldsymbol{\theta}_{-i}^{(k)}, \boldsymbol{X})} \frac{Q_i(\theta_i^{(k)} | \theta_i^*)}{Q_i(\theta_i^*|\theta_i^{(k)})} \numberthis \label{eqn:1} \\ &= \frac{f(\theta_i^*, \boldsymbol{\theta}_{-i}^{(k)}, \boldsymbol{X})}{f(\theta_i^{(k)}, \boldsymbol{\theta}_{-i}^{(k)}, \boldsymbol{X})} \end{align*}
+        
+        3. Calculate acceptance probability $\alpha_i(\theta_i^{(k)}, \theta_i^*) = \mbox{min} \left( 1, r_i^{(k)} \right)$.
+        
+        4. Draw $U \sim Unif(0, 1)$. If $U < \alpha_i(\theta_i^{(k)}, \theta_i^*)$, then set $\theta_i^{(k+1)} = \theta_i^*$. Otherwise, set $\theta_i^{(k+1)} = \theta_i^{(k)}$.
+
+For each $Q_i(\theta^*|\theta_i^{(k)})$, we use a uniform distribution. More specifically, $\theta_i^*$ is generated as $\theta_i^* = \theta_i^{(k)} + Unif(-a_i, a_i)$, where $a_i$ represents the chosen window length for the $i$th parameter. We tune $a_i$ for each of the parameters by trying different $a_i$ until we find ones that allow us to accept about 30-60% of $N_{iter}$ iterations for a parameter. We keep track of the number of acceptances by computing the number of unique $\theta_i^{(k)}$ across all $N_{iter}$ iterations. Tuning $a_i$ is important because: 1) $a_i$ being too large means the proposed moves will be too large and unlikely to be accepted, taking the chain a long time to sample the entire parameter space (i.e. the chain is sampling a lot of values outside of the support of the posterior distribution); 2) $a_i$ being too small means that the proposed moves will be too small and accepted too often, taking the chain a long time to move around the parameter space.
+
+In equation (\ref{eqn:1}), the second equality holds since $\pi(\boldsymbol{\theta} | \boldsymbol{X}) = \frac{f(\boldsymbol{\theta}, \boldsymbol{X})}{m(\boldsymbol{X})}$, so the $m(\boldsymbol{X})$'s cancel out. Additionally, the third equality holds since $\theta_i^*$ is drawn from $Unif(\theta_i^{(k)} - a_i, \theta_i^{(k)} + a_i)$. Since the uniform distribution is a symmetric distribution, the $Q_i$'s cancel out. 
+
+To allow the results to converge more quickly and save computation time, we choose the $\boldsymbol{\theta}^{(0)}$ at the beginning of the algorithm based on results from model fitting using the frequentist approach (under the assumption that the Bayesian and frequentist approaches will yield similar results). More specifically, we fit a linear mixed effect model (LMM) with random intercepts on log(infection rate) for the $i$th state during the $j$th week (see Table 1 for results). The LMM is given as follows:
+$$\begin{aligned} log(\lambda_{ij}) = \alpha + \boldsymbol{\beta} \boldsymbol{x}^T_{ij} + \gamma P_{ij} + \delta E_{ij} + u_i + e_{ij} \end{aligned}$$
+where $\alpha$ is the fixed intercept, $\boldsymbol{\beta}$ is the vector of fixed-effect coefficients associated with the vector of covariates $\boldsymbol{x}^T_{ij}$, $\gamma$ is the fixed-effect coefficient associated with population density $P_{ij}$, $\delta$ is the fixed-effect coefficient associated with the perentage of elderly population $E_{ij}$, $u_i \sim N(0, \sigma_u^2)$ is the state-specific random intercept, and $e_{ij} \sim N(0, \sigma_e^2)$ is the residual error term.
+
+```{r, warning = FALSE, message = FALSE}
+# read in data
+data <- read_csv("covid_working_data.csv")
+
+# prepare data
+data <- data %>%
+  mutate(
+    week = week(week_start),
+    log_infection_rate = log(infection_rate)
+  )
+
+# fit lmer 
+fit_lmer <- lmer(
+  log_infection_rate ~ retail_and_recreation_percent_change_from_baseline +
+    parks_percent_change_from_baseline + transit_stations_percent_change_from_baseline +
+    government_response_index + containment_index + economic_support_index +
+    stringency_index + week + population_density + Percentage_over_65 + (1 | state),
+  data = data %>% filter(log_infection_rate != -Inf) 
+) %>% 
+  suppressWarnings()
+
+tab_lmer <- data.frame(
+  Coefficient = c(
+    "(Intercept)",
+    "Retail/rec. % change",
+    "Parks % change",
+    "Transit % change",
+    "Gov. response index",
+    "Containment index",
+    "Economic support index",
+    "Stringency index",
+    "Week",
+    "Population density",
+    "% over 65",
+    "sigma_u",
+    "simga_e"
+  ),
+  Estimate = c(
+    summary(fit_lmer)$coefficients[,"Estimate"] %>% round(digits = 3),
+    VarCorr(fit_lmer)$state[1] %>% sqrt() %>% round(digits = 3),
+    summary(fit_lmer)$sigma %>% round(digits = 3)
+  )
+)
+
+tab_lmer %>%
+  kbl(
+    booktabs = TRUE, linesep = "", 
+    caption = "Summary of LMM fit on log(infection rate)"
+  )
+```
+
+
+
+        
+
+
+
+
+
+
+# Results
+
+## Convergence
+
+## Posterior Summaries
+
+# Conclusion
+
+
+
+\clearpage
+
+# References
+
+<div id="refs"></div>
+
+
+
+
+
+
+
+
