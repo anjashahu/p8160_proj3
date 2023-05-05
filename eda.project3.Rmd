@@ -1,0 +1,91 @@
+---
+title: "EDA"
+author: "Lincole Jiang (lj2575)"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load.data}
+library(readr)
+library(tidyverse)
+dat <- read_csv("./covid_working_data.csv")
+head(dat)
+str(dat)
+library(ggplot2)
+library(ggpubr)
+```
+
+```{r eda1}
+dat$state <- state.abb[match(dat$state,state.name)]
+# infection rate w.r.t. time for each state
+p1 <- dat %>% drop_na() %>% 
+  group_by(state) %>% 
+  ggplot(aes(x = week_start, y = log(infection_rate), col = state)) + 
+  geom_point(size = 0.5) + 
+  ggtitle("Log-Infection Rate Over Time") + 
+  xlab("week") +
+  ylab("log-infection rate")
+# weekly cases w.r.t. time for each state
+p2 <- dat %>% drop_na() %>% 
+    group_by(state) %>% 
+    ggplot(aes(x = week_start, y = weekly_cases, col = state)) + 
+    geom_point(size = 0.5) + 
+    ggtitle("Weekly Cases Over Time") + 
+    xlab("week") +
+    ylab("weekly cases")
+p <- ggarrange(p1, p2, ncol = 2, legend = "none", common.legend = TRUE)
+ggsave(filename = "response_dist.png",p)
+
+# time-invariant data
+cons.dat <- dat %>% 
+  dplyr::select(state, pop2019, Percentage_over_65, LandArea, population_density, weekly_cases) %>% 
+  group_by(state) %>%
+  summarise(mean_weekly_cases = mean(weekly_cases),
+            pop2019 = mean(pop2019),
+            Percentage_over_65 = mean(Percentage_over_65),
+            LandArea = mean(LandArea),
+            population_density = mean(population_density))
+
+library(caret)
+featurePlot(x = cons.dat[, 3:6],
+            y = cons.dat$mean_weekly_cases,
+            plot = "scatter",
+            auto.key = list(columns = 2),
+            labels = c("Time-Insensitive Covariates", "Mean Weekly Cases"))
+# 
+# # time sensitive
+# dat1 <- dat %>% na.omit() %>% mutate(log_inf = log(infection_rate))
+# featurePlot(x = dat1[, 3:6],
+#             y = cons.dat$mean_weekly_cases,
+#             plot = "scatter",
+#             auto.key = list(columns = 2),
+#             labels = c("Time-Insensitive Covariates", "Mean Weekly Cases"))
+```
+
+```{r eda.time.sensitive}
+dat1 <- dat %>% drop_na() %>% mutate(log_inf = log(infection_rate))
+# time-sensitive data; government response
+q1 <- dat1 %>% ggplot(aes(x = government_response_index, y = log_inf, col = state)) + geom_point(size = 0.5) + xlab("government response index") + ylab("log-infection rate")
+q2 <- dat1 %>% ggplot(aes(x =  containment_index, y = log_inf, col = state)) + geom_point(size = 0.5) + xlab("containment index") + ylab("log-infection rate")
+q3 <- dat1 %>% ggplot(aes(x = economic_support_index, y = log_inf, col = state)) + geom_point(size = 0.5) + xlab("economic support index") + ylab("log-infection rate")
+q4 <- dat1 %>% ggplot(aes(x =  stringency_index, y = log_inf, col = state)) + geom_point(size = 0.5) + xlab("stringency index") + ylab("log-infection rate")
+q <- ggarrange(q1, q2, q3, q4, 
+          ncol=2,
+          nrow=2, 
+          legend = "none")
+ggsave(filename="gov.resp.png", q)
+
+# mobility changes
+w1 <- dat1 %>% ggplot(aes(x = retail_and_recreation_percent_change_from_baseline, y = log_inf, col = state)) + geom_point(size = 0.5) + xlab("retail & recreation") + ylab("log-infection rate")
+w2 <- dat1 %>% ggplot(aes(x = parks_percent_change_from_baseline, y = log_inf, col = state)) + geom_point(size = 0.5) + xlab("parks") + ylab("log-infection rate")
+w3 <- dat1 %>% ggplot(aes(x = transit_stations_percent_change_from_baseline, y = log_inf, col = state)) + geom_point(size = 0.5) + xlab("transit stations") + ylab("log-infection rate")
+w <- ggarrange(w1, w2, w3, 
+               ncol=1,
+               nrow=3,
+               legend = "none")
+ggsave(filename="mob.change.png", w)
+```
