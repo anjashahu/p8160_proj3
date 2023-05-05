@@ -123,6 +123,17 @@ where $\alpha$ is the fixed intercept, $\boldsymbol{\beta}$ is the vector of fix
 # Results
 
 ## Convergence
+We present the convergence diagnostics and summaries of the posterior distribution of the MCMC algorithm. Specifically, we focus on the coefficients for the following covariates: effect of government interventions, mobility changes, population density and elderly percentage. We ran the aforementioned  MCMC algorithm with 200,000 iterations and first monitor the convergence results of the MCMC samples. Before we formally present the model diagnostics, we note that there are two common issues in MCMC samples. One common problem is that a large portion of the sample is drawn from distributions that are significantly different from the target. Another common issue is that the effective size of the sample is too small. If the above major issues are absent, then the following hypotheses hold:
+The majority of the observations in the MCMC sample have been drawn from distributions that are very similar to the target distribution and the effective size of the sample is not too small. These hypotheses imply that the empirical distribution of any large chunk of the sample is a good approximation of the target distribution.
+
+To test for this implication, we use the tools of diagnostic plots including trace plot, density plot and autocorrelation function (ACF) plot [@taboga_2021]. A trace plot is a plot of the chain values against iteration number. It can be used to visually inspect the chain for convergence and mixing properties. If the trace plot shows a random walk with no discernible pattern, the chain is likely to be well-mixed and converged. If there are any trends or patterns in the plot, further investigation may be required. A density plot is a plot of the estimated probability density function of the chain values.  It can be used to assess the shape and distribution of the chain, and to identify any potential problems such as multimodality or skewness. An auto-correlation plot is a plot of the auto-correlation function of the chain values against lag. It can be used to assess the degree of correlation between values in the chain at different lags, and to identify any potential problems such as long-term dependence or lack of mixing.
+
+We first examine the trace plot and density plot for the coefficients of interest. As shown in figure 5-8, MCMC samples converged well for the coefficient for mobility change and population density. For government response index, we observe a lot of serial correlation between successive draws. The chain is very slow in exploring the sample space. There seems to be few independent observations in our sample. The effective size of our sample is too small. Multimodality is also detected in the density plot. For elderly population percentage, we observe moderate correlation between successive draws and the effective size of the sample is also too small. 
+
+In addition, we create ACF plot to identify any pattern of correlation with respect to different values of lags. As shown in figure 9, we observe that for population density and mobility change, the autocorrelation is large at short lags, but then goes to zero pretty quickly. For elderly population percentage, government response, the autocorrelation is large at short lags, but it also dies out very slowly indicating that the effective sample size is small. 
+
+Finally, we present a discussion for other diagnostics methods. We could further compute effective sample size based on some exiting packages. We could also create multiple chains with different starting values and then compare and monitor the convergence of different chains using Gelman-Rubin Statistics (R-hat). To further improve the algorithms, we could use multiple-try metropolis [@liu2000multiple] to address the dimensionality issues. Hamiltonian (or hybrid) Monte Carlo (HMC) [@hoffman2014no] can be implemented to avoid random walks. And finally, we can also consider using
+a hybrid approach where we can use empirical bayes to estimate some hyperparameters when n is large. 
 
 ## Posterior Summaries
 
@@ -246,4 +257,42 @@ knitr::include_graphics("mob.change.png")
 
 \begin{center}
 Figure 4: Log-Infection Rate vs Mobility Percentage Changes
+\end{center}
+
+\begin{center}
+Figure 5: Trace plot and density plot for government response
+\end{center}
+
+```{r,echo=FALSE,out.width='80%',out.height='90%',fig.align='center'}
+knitr::include_graphics("elder_per.png")
+```
+
+\begin{center}
+Figure 6: Trace plot and density plot for elderly population percentage
+\end{center}
+
+```{r,echo=FALSE,out.width='80%',out.height='90%',fig.align='center'}
+knitr::include_graphics("mobility_change.png")
+```
+
+\begin{center}
+Figure 7: Trace plot and density plot for mobility change
+\end{center}
+
+
+```{r,echo=FALSE,out.width='80%',out.height='90%',fig.align='center'}
+knitr::include_graphics("population_density.png")
+```
+
+\begin{center}
+Figure 8: Trace plot and density plot for population density
+\end{center}
+
+
+```{r,echo=FALSE,out.width='80%',out.height='90%',fig.align='center'}
+knitr::include_graphics("ACF.png")
+```
+
+\begin{center}
+Figure 9: ACF plot with maximum lag at 10000
 \end{center}
