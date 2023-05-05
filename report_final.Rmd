@@ -17,6 +17,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 library(tidyverse)
 library(lme4)
+library(lubridate)
 library(knitr)
 library(kableExtra)
 ```
@@ -32,7 +33,48 @@ To summarize, the main objective of this project is to investigate how various s
 
 # Methods
 
-## Model    
+## Model
+
+In this project, we use a Bayesian approach to estimate fixed effects of interest through the posterior likelihood of our model parameters. To find posterior estimates for each parameter, we are given some distributional assumptions. First, let's introduce the notation we will use to describe variables and parameters. Let $Y_{ij}$ be the number of new infections in state $i$ during week $j$. Let $\alpha$ be the intercept of our model. Let $\mathbf{\beta}$ be a vector of fixed effects coefficients for covariates $\mathbf{X_{ij}}$. Let $\gamma$ be the fixed effect coefficient for the population density, $P_{ij}$. Let $\delta$ be the fixed effect for the percentage of elderly population, $E_{ij}$. Finally, let $u_i$ be the state-level random effect and $\epsilon_{ij}$ be the residual error. Then our distributional assumptions are
+
+\begin{align*}
+Y_{ij} &\sim Poisson(\lambda_{ij}n_{ij}) \\
+log(\lambda_{ij}) &= \alpha + \mathbf{\beta X_{ij}^T} + \gamma P_{ij} + \delta E_{ij} + u_i + \epsilon_{ij} \\
+\alpha, \; \mathbf{\beta}, \; \gamma, \; \delta &\sim N(0, 1) \\
+u_i &\sim N(0, \sigma_u^2) \\
+\epsilon_{ij} &\sim N(0, \sigma_{\epsilon}^2) \\
+\sigma_{\epsilon}^2, \sigma_u^2 &\sim HN(0, 100).
+\end{align*}
+
+The first assumption in this hierarchical Bayesian framework (that $Y_{ij} \sim P(\lambda_{ij}n_{ij})$) adds an extra layer of distributional assumptions. We attempted to use this information to find posterior estimates for the fixed effects, however we ran into convergence issues in our MCMC algorithm. Therefore, for practicality, we simplified the problem by ignoring this assumption, essentially removing a layer from the hierarchical framework. Although this was ultimately a pragmatic decision in order to produce results we could interpret, we have some justifications for this. First, we are asked in this project to analyze the effect of our variables on the infection rate $\lambda_{ij}$, rather than the count $Y_{ij}$. So our outcome of interest is not $Y_{ij}$. Second, removing the top layer allows us to have a normal likelihood and priors, leading to posterior distribution that is easy to work with. Lastly, we are confident that, given our assumption, $log(\lambda_{ij})$ can be fit using a linear mixed effects model, particularly because the equation for $log(\lambda_{ij})$ includes a random error term $\epsilon_{ij}$. On the other hand, we are not sure how to deal with this error term in a Poisson mixed effects model, as it is not usually defined in that setting.
+
+Given these justifications, we end up with the following likelihood calculations. First, given the fixed effects and the distributional assumptions on $u_i$ and $\epsilon_{ij}$, we can see that
+
+\begin{equation*}
+\log(\lambda_{ij}) \sim N(\mu = \alpha + \mathbf{\beta X_{ij}^T} + \gamma P_{ij} + \delta E_{ij}, \sigma^2 = \sigma^2_u + \sigma^2_{\epsilon}).
+\end{equation*}
+
+Therefore the log-likelihood is
+
+\begin{equation*}
+l(data|\lambda_{ij}) = -\frac{1}{2}\log(2\pi\sigma^2) - \frac{(log(\lambda_{ij}) - \mu)^2}{2\sigma^2}.
+\end{equation*}
+
+It is straightforward to show from the distributional assumptions that the log-prior distribution is proportional to
+
+\begin{equation*}
+-\frac{1}{200}(\alpha^2 + sum(\mathbf{\beta^2}) + \gamma^2 + \delta^2 + \sigma^2_u + \sigma^2_\epsilon).
+\end{equation*}.
+
+Finally, we can add together the log-likelihood and log-prior distributions to get the log-posterior:
+
+\begin{equation*}
+\log(posterior) = -\frac{1}{2}\log(2\pi\sigma^2) - \frac{(log(\lambda_{ij}) - \mu)^2}{2\sigma^2}-\frac{1}{200}(\alpha^2 + sum(\mathbf{\beta^2}) + \gamma^2 + \delta^2 + \sigma^2_u + \sigma^2_\epsilon),
+\end{equation*}
+
+where $\mu = \alpha + \mathbf{\beta X_{ij}^t} + \gamma P_{ij} + \delta E_{ij}$ and $\sigma^2 = \sigma^2_u + \sigma^2_{\epsilon}$.
+
+Therefore we are essentially fitting a linear random effects model with a random intercept for state, with log infection rate as our outcome. Ultimately, we are only interested in fixed effects. Along with population density and elderly population, the covariates we include as a part of $\mathbf{X_{ij}}$ are retail and recreation utilization percent change from baseline, parks utilization percent change from baseline, transit stations utilization percent change from baseline, government response index, containment index, economic support index, stringency index, and the week of the year as a continuous variable. Now that our likelihood and model are clear, we will describe our alogirthm for finding posterior estimates.
 
 ## Algorithm
 
